@@ -101,7 +101,7 @@ DELETE /api/pedidos/1
 
 ### 1. Clonar el repositorio
 ```bash
-git clone https://github.com/TU_USUARIO/ms-pedidos.git
+git clone https://github.com/Miguel-Sanchez241001/ms-pedidos.git
 cd ms-pedidos
 ```
 
@@ -160,7 +160,7 @@ docker run -p 8081:8080 \
    git init
    git add .
    git commit -m "feat: ms-pedidos inicial"
-   git remote add origin https://github.com/TU_USUARIO/ms-pedidos.git
+   git remote add origin https://github.com/Miguel-Sanchez241001/ms-pedidos.git
    git push -u origin main
    ```
 
