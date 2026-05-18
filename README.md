@@ -2,8 +2,7 @@
 
 API REST para gestión de pedidos de clientes. El campo `total` se calcula automáticamente en el backend (`total = cantidad × precioUnitario`). El estado del pedido se maneja con un enum tipado que garantiza integridad de datos.
 
-🌐 **Producción:** https://ms-pedidos-zgv6.onrender.com  
-📦 **Repositorio:** https://github.com/Miguel-Sanchez241001/ms-pedidos
+🌐 **Producción:** https://ms-pedidos-zgv6.onrender.com
 
 ---
 
@@ -124,7 +123,7 @@ Valores válidos: `REGISTRADO` | `PAGADO` | `ENVIADO` | `CANCELADO`
 
 ### 1. Clonar
 ```bash
-git clone https://github.com/Miguel-Sanchez241001/ms-pedidos.git
+git clone https://github.com/TU_USUARIO/ms-pedidos.git
 cd ms-pedidos
 ```
 
