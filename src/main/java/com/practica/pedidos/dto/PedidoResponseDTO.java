@@ -1,5 +1,6 @@
 package com.examen.pedidos.dto;
 
+import com.examen.pedidos.entity.EstadoPedido;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -18,6 +19,6 @@ public class PedidoResponseDTO {
     private Integer cantidad;
     private BigDecimal precioUnitario;
     private BigDecimal total;
-    private String estado;
+    private EstadoPedido estado;
     private LocalDateTime fechaPedido;
 }

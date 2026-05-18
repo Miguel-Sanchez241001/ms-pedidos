@@ -3,6 +3,7 @@ package com.examen.pedidos.service;
 import com.examen.pedidos.dto.EstadoUpdateDTO;
 import com.examen.pedidos.dto.PedidoRequestDTO;
 import com.examen.pedidos.dto.PedidoResponseDTO;
+import com.examen.pedidos.entity.EstadoPedido;
 import com.examen.pedidos.entity.Pedido;
 import com.examen.pedidos.exception.PedidoNotFoundException;
 import com.examen.pedidos.repository.PedidoRepository;
@@ -30,7 +31,7 @@ public class PedidoService {
         pedido.setCantidad(dto.getCantidad());
         pedido.setPrecioUnitario(dto.getPrecioUnitario());
         pedido.setTotal(dto.getPrecioUnitario().multiply(BigDecimal.valueOf(dto.getCantidad())));
-        pedido.setEstado("REGISTRADO");
+        pedido.setEstado(EstadoPedido.REGISTRADO);
         return toResponse(repository.save(pedido));
     }
 
@@ -49,14 +50,14 @@ public class PedidoService {
     public PedidoResponseDTO actualizarEstado(Long id, EstadoUpdateDTO dto) {
         Pedido pedido = repository.findById(id)
                 .orElseThrow(() -> new PedidoNotFoundException(id));
-        pedido.setEstado(dto.getEstado().toUpperCase());
+        pedido.setEstado(dto.getEstado());
         return toResponse(repository.save(pedido));
     }
 
     public void eliminar(Long id) {
         Pedido pedido = repository.findById(id)
                 .orElseThrow(() -> new PedidoNotFoundException(id));
-        pedido.setEstado("CANCELADO");
+        pedido.setEstado(EstadoPedido.CANCELADO);
         repository.save(pedido);
     }
 

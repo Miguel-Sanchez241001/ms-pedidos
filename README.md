@@ -1,45 +1,75 @@
 # ms-pedidos
 
-Microservicio de gestión de pedidos. Permite registrar pedidos de clientes, listar, buscar, actualizar estado y eliminar pedidos mediante una API REST. El total del pedido se calcula automáticamente en el backend.
+API REST para gestión de pedidos de clientes. El campo `total` se calcula automáticamente en el backend (`total = cantidad × precioUnitario`). El estado del pedido se maneja con un enum tipado que garantiza integridad de datos.
 
-## Tecnologías utilizadas
+🌐 **Producción:** https://ms-pedidos-zgv6.onrender.com  
+📦 **Repositorio:** https://github.com/Miguel-Sanchez241001/ms-pedidos
 
-| Tecnología       | Versión  |
-|------------------|----------|
-| Java             | 21       |
-| Spring Boot      | 3.5.0    |
-| Spring Web       | —        |
-| Spring Data JPA  | —        |
-| PostgreSQL Driver| —        |
-| Validation (JSR-380) | —    |
-| Lombok           | —        |
-| Maven            | 3.9+     |
-| Neon (PostgreSQL en la nube) | — |
-| Docker           | —        |
-| Render           | —        |
+---
 
-## Entidad: Pedido
+## Stack tecnológico
 
-| Campo          | Tipo         | Descripción                                   |
-|----------------|--------------|-----------------------------------------------|
-| id             | Long         | Identificador único (auto-generado)           |
-| cliente        | String       | Nombre del cliente                            |
-| correoCliente  | String       | Correo electrónico del cliente                |
-| productoId     | Long         | ID del producto solicitado                    |
-| nombreProducto | String       | Nombre del producto                           |
-| cantidad       | Integer      | Cantidad solicitada                           |
-| precioUnitario | BigDecimal   | Precio del producto                           |
-| total          | BigDecimal   | Total calculado (cantidad × precioUnitario)   |
-| estado         | String       | REGISTRADO / PAGADO / ENVIADO / CANCELADO     |
-| fechaPedido    | LocalDateTime| Fecha de creación (auto-asignada)             |
+| Capa              | Tecnología                          |
+|-------------------|-------------------------------------|
+| Lenguaje          | Java 21                             |
+| Framework         | Spring Boot 3.5.0                   |
+| Persistencia      | Spring Data JPA + Hibernate 6.6     |
+| Base de datos     | PostgreSQL (Neon — serverless)      |
+| Validaciones      | Jakarta Bean Validation (JSR-380)   |
+| Build             | Maven 3.9                           |
+| Contenedor        | Docker (multi-stage build)          |
+| Despliegue        | Render (Docker runtime)             |
 
-## Endpoints disponibles
+---
 
-### POST /api/pedidos — Crear pedido
-```http
-POST /api/pedidos
-Content-Type: application/json
+## Estados del pedido — Enum `EstadoPedido`
 
+El estado se define con un enum Java y se persiste como `VARCHAR` en la BD (`@Enumerated(EnumType.STRING)`). Esto elimina errores por cadenas inválidas.
+
+```java
+public enum EstadoPedido {
+    REGISTRADO,  // estado inicial al crear el pedido
+    PAGADO,      // pago confirmado
+    ENVIADO,     // pedido en camino al cliente
+    CANCELADO    // eliminación lógica (DELETE) o cancelación manual
+}
+```
+
+> La eliminación es **lógica**: el `DELETE` cambia `estado → CANCELADO`. El registro permanece en la BD.
+
+---
+
+## Modelo de datos
+
+| Campo          | Tipo          | Restricción                                      |
+|----------------|---------------|--------------------------------------------------|
+| id             | Long          | PK, autoincremental                              |
+| cliente        | String        | Obligatorio                                      |
+| correoCliente  | String        | Obligatorio, formato email válido                |
+| productoId     | Long          | Obligatorio                                      |
+| nombreProducto | String        | Obligatorio                                      |
+| cantidad       | Integer       | Obligatorio, mínimo 1                            |
+| precioUnitario | BigDecimal    | Obligatorio, mayor que 0                         |
+| total          | BigDecimal    | **Calculado en backend**: `cantidad × precioUnitario` |
+| estado         | EstadoPedido  | Enum: REGISTRADO / PAGADO / ENVIADO / CANCELADO  |
+| fechaPedido    | LocalDateTime | Asignada automáticamente en `@PrePersist`        |
+
+---
+
+## Endpoints
+
+| Método    | Ruta                         | Descripción                        | Respuesta        |
+|-----------|------------------------------|------------------------------------|------------------|
+| `POST`    | `/api/pedidos`               | Crear pedido (total auto-calculado)| `201 Created`    |
+| `GET`     | `/api/pedidos`               | Listar todos los pedidos           | `200 OK`         |
+| `GET`     | `/api/pedidos/{id}`          | Buscar pedido por ID               | `200` / `404`    |
+| `PATCH`   | `/api/pedidos/{id}/estado`   | Actualizar solo el estado          | `200` / `400` / `404` |
+| `DELETE`  | `/api/pedidos/{id}`          | Cancelar pedido (lógico)           | `204 No Content` |
+
+### POST /api/pedidos
+> ⚠ No incluir `total` en el body — el backend lo calcula automáticamente.
+
+```json
 {
   "cliente": "Juan Pérez",
   "correoCliente": "juan@email.com",
@@ -49,57 +79,50 @@ Content-Type: application/json
   "precioUnitario": 3500.00
 }
 ```
-> El campo `total` se calcula automáticamente: `total = cantidad × precioUnitario`
 
-### GET /api/pedidos — Listar todos los pedidos
-```http
-GET /api/pedidos
+### PATCH /api/pedidos/{id}/estado
+Los valores deben coincidir **exactamente** con el enum (mayúsculas):
+
+```json
+{ "estado": "PAGADO" }
 ```
 
-### GET /api/pedidos/{id} — Buscar por ID
-```http
-GET /api/pedidos/1
-```
+Valores válidos: `REGISTRADO` | `PAGADO` | `ENVIADO` | `CANCELADO`
 
-### PATCH /api/pedidos/{id}/estado — Actualizar estado
-```http
-PATCH /api/pedidos/1/estado
-Content-Type: application/json
-
+### Respuesta exitosa (ejemplo POST)
+```json
 {
-  "estado": "PAGADO"
+  "id": 1,
+  "cliente": "Juan Pérez",
+  "correoCliente": "juan@email.com",
+  "productoId": 1,
+  "nombreProducto": "Laptop Lenovo",
+  "cantidad": 2,
+  "precioUnitario": 3500.00,
+  "total": 7000.00,
+  "estado": "REGISTRADO",
+  "fechaPedido": "2026-05-17T15:48:18.675"
 }
 ```
-**Estados válidos:** `REGISTRADO` | `PAGADO` | `ENVIADO` | `CANCELADO`
 
-### DELETE /api/pedidos/{id} — Eliminar (lógico)
-```http
-DELETE /api/pedidos/1
-```
-> La eliminación es lógica: cambia el estado a `CANCELADO`.
-
-## Respuesta de error
-
+### Respuesta de error
 ```json
 {
   "mensaje": "Pedido no encontrado",
   "detalle": "No existe un pedido con el ID 5",
-  "fecha": "2026-05-09T10:30:00"
+  "fecha": "2026-05-17T15:48:00"
 }
 ```
 
-## Variables de entorno necesarias
+---
 
-| Variable      | Descripción                                 | Ejemplo                                                   |
-|---------------|---------------------------------------------|-----------------------------------------------------------|
-| `DB_URL`      | JDBC URL de conexión a PostgreSQL en Neon   | `jdbc:postgresql://host/neondb?sslmode=require`           |
-| `DB_USERNAME` | Usuario de la base de datos                 | `neondb_owner`                                            |
-| `DB_PASSWORD` | Contraseña de la base de datos              | `tu_password`                                             |
-| `PORT`        | Puerto del servidor (default: 8081)         | `8080`                                                    |
+## Ejecución local
 
-## Ejecución en local
+### Prerrequisitos
+- Java 21
+- Maven 3.9+
 
-### 1. Clonar el repositorio
+### 1. Clonar
 ```bash
 git clone https://github.com/Miguel-Sanchez241001/ms-pedidos.git
 cd ms-pedidos
@@ -107,144 +130,89 @@ cd ms-pedidos
 
 ### 2. Configurar variables de entorno
 
-**Windows (PowerShell):**
+**Windows (PowerShell)**
 ```powershell
-$env:DB_URL="jdbc:postgresql://ep-noisy-sea-aqnnmy17-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require"
-$env:DB_USERNAME="neondb_owner"
-$env:DB_PASSWORD="tu_password"
-$env:PORT="8081"
+$env:DB_URL      = "jdbc:postgresql://HOST/neondb?sslmode=require"
+$env:DB_USERNAME = "tu_usuario"
+$env:DB_PASSWORD = "tu_password"
+$env:PORT        = "8081"
 ```
 
-**Linux / macOS (bash):**
+**Linux / macOS**
 ```bash
-export DB_URL="jdbc:postgresql://ep-noisy-sea-aqnnmy17-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require"
-export DB_USERNAME="neondb_owner"
+export DB_URL="jdbc:postgresql://HOST/neondb?sslmode=require"
+export DB_USERNAME="tu_usuario"
 export DB_PASSWORD="tu_password"
 export PORT=8081
 ```
 
-### 3. Compilar y ejecutar
-```bash
-mvn clean package -DskipTests
-java -jar target/ms-pedidos-0.0.1-SNAPSHOT.jar
-```
-
-O directamente:
+### 3. Ejecutar
 ```bash
 mvn spring-boot:run
+# API disponible en http://localhost:8081/api/pedidos
 ```
 
-El servicio estará disponible en: `http://localhost:8081/api/pedidos`
-
-### 4. Ejecutar con Docker (local)
+### 4. Docker (local)
 ```bash
 docker build -t ms-pedidos .
 docker run -p 8081:8080 \
-  -e DB_URL="jdbc:postgresql://ep-noisy-sea-aqnnmy17-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require" \
-  -e DB_USERNAME="neondb_owner" \
+  -e DB_URL="jdbc:postgresql://HOST/neondb?sslmode=require" \
+  -e DB_USERNAME="tu_usuario" \
   -e DB_PASSWORD="tu_password" \
   ms-pedidos
 ```
 
+---
+
 ## Despliegue en Render
 
-### Prerrequisitos
-- Cuenta en [Render](https://render.com)
-- Repositorio en GitHub con el código de este proyecto
-- Base de datos activa en [Neon](https://neon.tech)
+### Variables de entorno requeridas
 
-### Pasos de despliegue
+| Variable      | Descripción                      |
+|---------------|----------------------------------|
+| `DB_URL`      | `jdbc:postgresql://HOST/neondb?sslmode=require` |
+| `DB_USERNAME` | Usuario de Neon                  |
+| `DB_PASSWORD` | Contraseña de Neon               |
+| `PORT`        | `8080`                           |
 
-1. **Subir el código a GitHub:**
-   ```bash
-   git init
-   git add .
-   git commit -m "feat: ms-pedidos inicial"
-   git remote add origin https://github.com/Miguel-Sanchez241001/ms-pedidos.git
-   git push -u origin main
-   ```
+### Pasos
+1. Ir a [render.com](https://render.com) → **New** → **Web Service**
+2. Conectar el repo `ms-pedidos` desde GitHub
+3. Seleccionar **Language: Docker**
+4. Agregar las 4 variables de entorno
+5. Clic en **Create Web Service** — build tarda ~5 min
 
-2. **Crear servicio en Render:**
-   - Ir a [render.com](https://render.com) → **New** → **Web Service**
-   - Conectar tu cuenta de GitHub y seleccionar el repositorio `ms-pedidos`
-   - Configurar:
-     - **Name:** `ms-pedidos`
-     - **Language:** `Docker`
-     - **Branch:** `main`
-     - **Dockerfile Path:** `./Dockerfile`
+> ⚠ En el plan gratuito, el servicio duerme tras 15 min de inactividad. La primera petición puede tardar ~30 s.
 
-3. **Configurar variables de entorno en Render:**
+---
 
-   En la sección **Environment** del servicio, agregar:
+## Base de datos — Neon
 
-   | Key           | Value                                                                                  |
-   |---------------|----------------------------------------------------------------------------------------|
-   | `DB_URL`      | `jdbc:postgresql://ep-noisy-sea-aqnnmy17-pooler.c-8.us-east-1.aws.neon.tech/neondb?sslmode=require` |
-   | `DB_USERNAME` | `neondb_owner`                                                                         |
-   | `DB_PASSWORD` | *(tu contraseña de Neon)*                                                              |
-   | `PORT`        | `8080`                                                                                 |
+La tabla `pedidos` se crea automáticamente con `ddl-auto=update`. La columna `estado` se almacena como `VARCHAR(20)` con los valores del enum.
 
-4. **Iniciar el despliegue:**
-   - Hacer clic en **Create Web Service**
-   - Esperar a que el build de Docker finalice (3-5 minutos la primera vez)
-
-5. **Verificar el despliegue:**
-   ```bash
-   curl https://ms-pedidos.onrender.com/api/pedidos
-   ```
-
-> **Nota:** En el plan gratuito de Render, el servicio entra en "sleep" tras 15 minutos de inactividad. La primera petición puede tardar ~30 segundos en despertar.
-
-### Uso con render.yaml (Blueprint)
-
-Alternativamente, usa el archivo `render.yaml` incluido en el proyecto:
-- Ir a Render → **New** → **Blueprint**
-- Conectar el repositorio
-- Render detectará el `render.yaml` y configurará el servicio automáticamente
-- Solo tendrás que ingresar las variables marcadas como `sync: false` (las credenciales)
-
-## URL del servicio desplegado
-
+Para verificar:
+```sql
+-- En el SQL Editor de Neon
+SELECT * FROM pedidos;
+SELECT id, cliente, estado, total FROM pedidos ORDER BY fecha_pedido DESC;
 ```
-https://ms-pedidos.onrender.com/api/pedidos
-```
-*(URL de ejemplo — reemplazar con la URL real de Render tras el despliegue)*
 
-## Configuración de Neon (base de datos)
-
-La tabla `pedidos` se crea automáticamente al iniciar el servicio gracias a `spring.jpa.hibernate.ddl-auto=update`.
-
-Para verificar en Neon:
-1. Ir a [neon.tech](https://neon.tech) → tu proyecto
-2. Abrir el **SQL Editor**
-3. Ejecutar: `SELECT * FROM pedidos;`
+---
 
 ## Estructura del proyecto
 
 ```
 ms-pedidos/
 ├── src/main/java/com/examen/pedidos/
-│   ├── MsPedidosApplication.java
-│   ├── controller/
-│   │   └── PedidoController.java
-│   ├── service/
-│   │   └── PedidoService.java
-│   ├── repository/
-│   │   └── PedidoRepository.java
-│   ├── entity/
-│   │   └── Pedido.java
-│   ├── dto/
-│   │   ├── PedidoRequestDTO.java
-│   │   ├── PedidoResponseDTO.java
-│   │   └── EstadoUpdateDTO.java
-│   └── exception/
-│       ├── PedidoNotFoundException.java
-│       ├── GlobalExceptionHandler.java
-│       └── ErrorResponse.java
+│   ├── controller/   PedidoController.java
+│   ├── service/      PedidoService.java
+│   ├── repository/   PedidoRepository.java
+│   ├── entity/       Pedido.java · EstadoPedido.java
+│   ├── dto/          PedidoRequestDTO.java · PedidoResponseDTO.java · EstadoUpdateDTO.java
+│   └── exception/    GlobalExceptionHandler.java · PedidoNotFoundException.java · ErrorResponse.java
 ├── src/main/resources/
 │   └── application.properties
 ├── Dockerfile
 ├── render.yaml
-├── .env.example
 └── pom.xml
 ```

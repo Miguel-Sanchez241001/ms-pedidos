@@ -40,8 +40,9 @@ public class Pedido {
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal total;
 
-    @Column(nullable = false)
-    private String estado;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private EstadoPedido estado;
 
     @Column(name = "fecha_pedido", nullable = false, updatable = false)
     private LocalDateTime fechaPedido;
@@ -49,6 +50,6 @@ public class Pedido {
     @PrePersist
     protected void onCreate() {
         this.fechaPedido = LocalDateTime.now();
-        if (this.estado == null) this.estado = "REGISTRADO";
+        if (this.estado == null) this.estado = EstadoPedido.REGISTRADO;
     }
 }
